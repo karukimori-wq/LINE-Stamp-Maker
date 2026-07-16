@@ -1,0 +1,3 @@
+import Link from 'next/link';
+const items = [['ホーム','/','⌂'],['アイデア','#','✎'],['キャラ','#','◉'],['スタンプ','#','◇'],['出力','#','⇩']] as const;
+export function BottomNavigation(){return <nav className="fixed inset-x-0 bottom-0 z-20 border-t bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"><div className="mx-auto grid max-w-md grid-cols-5">{items.map(([label,href,icon],i)=><Link key={label} href={href} className={`flex min-h-16 flex-col items-center justify-center gap-1 text-[11px] ${i===0?'text-emerald-600':'text-zinc-500'}`}><span className="text-lg">{icon}</span>{label}</Link>)}</div></nav>}
