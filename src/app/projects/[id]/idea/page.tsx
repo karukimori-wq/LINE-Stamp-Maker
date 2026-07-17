@@ -1,88 +1,12 @@
 'use client';
-
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { getProject, updateProject } from '@/lib/db';
+import { useEffect,useState } from 'react';
+import { useParams,useRouter } from 'next/navigation';
+import { getProject,updateProject } from '@/lib/db';
 import { generateIdeaPrompt } from '@/lib/promptGenerator';
 import type { Project } from '@/types/project';
+import type { Stamp } from '@/types/stamp';
 
-const inputClass = 'mt-1 min-h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500';
-const labelClass = 'block text-sm font-medium text-zinc-700';
-
-export default function IdeaPage() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
-  const [project, setProject] = useState<Project | null>(null);
-  const [prompt, setPrompt] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    getProject(id)
-      .then((value) => value ? setProject(value) : setError('プロジェクトが見つかりません。'))
-      .catch(() => setError('プロジェクトを読み込めませんでした。'));
-  }, [id]);
-
-  if (!project) return <main className="mx-auto min-h-dvh max-w-md bg-zinc-50 p-5 pt-[calc(env(safe-area-inset-top)+1rem)]"><p>{error || '読み込み中...'}</p></main>;
-
-  const save = async (next: Project) => {
-    setSaving(true);
-    setError('');
-    try {
-      const saved = await updateProject(next);
-      setProject(saved);
-      return saved;
-    } catch {
-      setError('保存に失敗しました。もう一度お試しください。');
-      return null;
-    } finally { setSaving(false); }
-  };
-
-  const updateIdea = (key: keyof Project['idea'], value: string) => setProject({ ...project, idea: { ...project.idea, [key]: value } });
-  const updateConcept = (key: keyof Project['concept'], value: string) => setProject({ ...project, concept: { ...project.concept, [key]: value } });
-
-  const makePrompt = async () => {
-    const saved = await save(project);
-    if (saved) { setPrompt(generateIdeaPrompt(saved)); setMessage('AI用プロンプトを作成しました。'); }
-  };
-
-  const copyPrompt = async () => {
-    try { await navigator.clipboard.writeText(prompt); setMessage('プロンプトをコピーしました。'); }
-    catch { setError('コピーできませんでした。プロンプトを長押ししてコピーしてください。'); }
-  };
-
-  const proceed = async () => {
-    const saved = await save({ ...project, currentStep: Math.max(project.currentStep, 2) });
-    if (saved) router.push(`/projects/${id}/character`);
-  };
-
-  return <main className="mx-auto min-h-dvh max-w-md bg-zinc-50 px-5 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+1rem)]">
-    <button onClick={() => router.push('/')} className="min-h-11 min-w-11 text-left text-2xl" aria-label="ホームへ戻る">‹</button>
-    <header className="mt-2"><p className="text-xs font-bold text-emerald-600">STEP 1 / 5</p><h1 className="mt-1 text-2xl font-bold">アイデア</h1><p className="mt-1 text-sm text-zinc-500">{project.name}</p></header>
-    {error && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    {message && <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{message}</p>}
-
-    <section className="mt-6 space-y-4 rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <label className={labelClass}>アイデア<textarea className={`${inputClass} min-h-24`} value={project.idea.rawIdea} onChange={(e)=>updateIdea('rawIdea',e.target.value)} placeholder="例：ゆるくてかわいい猫。日常で使えるスタンプ" /></label>
-      <label className={labelClass}>ターゲット<input className={inputClass} value={project.idea.target} onChange={(e)=>updateIdea('target',e.target.value)} placeholder="例：20〜40代の男女" /></label>
-      <label className={labelClass}>利用シーン<input className={inputClass} value={project.idea.usageScene} onChange={(e)=>updateIdea('usageScene',e.target.value)} placeholder="例：日常会話、職場、友達との会話" /></label>
-      <label className={labelClass}>雰囲気<input className={inputClass} value={project.idea.mood} onChange={(e)=>updateIdea('mood',e.target.value)} placeholder="例：ゆるい、かわいい、親しみやすい" /></label>
-      <label className={labelClass}>その他<textarea className={`${inputClass} min-h-20`} value={project.idea.notes} onChange={(e)=>updateIdea('notes',e.target.value)} placeholder="文字は手書き風、白ベースなど" /></label>
-      <button disabled={saving} onClick={makePrompt} className="min-h-12 w-full rounded-xl bg-emerald-600 px-4 font-bold text-white disabled:opacity-50">{saving?'保存中...':'AI用プロンプトを作成'}</button>
-    </section>
-
-    {prompt && <section className="mt-6 rounded-3xl border border-emerald-100 bg-emerald-50 p-5"><div className="flex items-center justify-between gap-3"><h2 className="font-bold">AI用プロンプト</h2><button onClick={copyPrompt} className="min-h-11 rounded-xl border border-emerald-600 bg-white px-4 text-sm font-bold text-emerald-700">コピー</button></div><pre className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-zinc-700">{prompt}</pre></section>}
-
-    <section className="mt-6 space-y-4 rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <div><h2 className="font-bold">AIからの回答を入力</h2><p className="mt-1 text-xs text-zinc-500">外部AIの回答を確認し、必要に応じて編集してください。</p></div>
-      <label className={labelClass}>コンセプト<textarea className={`${inputClass} min-h-20`} value={project.concept.concept} onChange={(e)=>updateConcept('concept',e.target.value)} /></label>
-      <label className={labelClass}>キャラクター方向性<textarea className={`${inputClass} min-h-20`} value={project.concept.characterDirection} onChange={(e)=>updateConcept('characterDirection',e.target.value)} /></label>
-      <label className={labelClass}>デザインテイスト<input className={inputClass} value={project.concept.designStyle} onChange={(e)=>updateConcept('designStyle',e.target.value)} /></label>
-      <label className={labelClass}>利用シーン<input className={inputClass} value={project.concept.usageScene} onChange={(e)=>updateConcept('usageScene',e.target.value)} /></label>
-      <label className={labelClass}>セリフ方向性<textarea className={`${inputClass} min-h-20`} value={project.concept.dialogueDirection} onChange={(e)=>updateConcept('dialogueDirection',e.target.value)} /></label>
-      <label className={labelClass}>差別化ポイント<textarea className={`${inputClass} min-h-20`} value={project.concept.differentiation} onChange={(e)=>updateConcept('differentiation',e.target.value)} /></label>
-      <button disabled={saving} onClick={proceed} className="min-h-12 w-full rounded-xl bg-emerald-600 px-4 font-bold text-white disabled:opacity-50">この内容で進む</button>
-    </section>
-  </main>;
-}
+const input='mt-1 min-h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500';
+type AIResponse={concept:string;characterDirection:string;designStyle:string;usageScene:string;dialogueDirection:string;differentiation:string;stamps:Array<{number:number;comment:string;emotion:string;expression?:string;pose:string;scene:string}>};
+function parseAIResponse(raw:string):AIResponse{const cleaned=raw.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');const data:unknown=JSON.parse(cleaned);if(!data||typeof data!=='object')throw new Error();const d=data as Partial<AIResponse>;if(!Array.isArray(d.stamps)||d.stamps.length!==9)throw new Error();const required=['concept','characterDirection','designStyle','usageScene','dialogueDirection','differentiation'] as const;for(const key of required)if(typeof d[key]!=='string')throw new Error();if(d.stamps.some(s=>!s||typeof s.comment!=='string'||typeof s.emotion!=='string'||typeof s.pose!=='string'||typeof s.scene!=='string'))throw new Error();return d as AIResponse;}
+export default function IdeaPage(){const{id}=useParams<{id:string}>();const router=useRouter();const[p,setP]=useState<Project|null>(null);const[prompt,setPrompt]=useState('');const[json,setJson]=useState('');const[msg,setMsg]=useState('');const[err,setErr]=useState('');useEffect(()=>{getProject(id).then(v=>v?setP(v):setErr('プロジェクトが見つかりません。')).catch(()=>setErr('読み込みに失敗しました。'));},[id]);if(!p)return <main className="mx-auto max-w-md p-5">{err||'読み込み中...'}</main>;const idea=(k:keyof Project['idea'],v:string)=>setP({...p,idea:{...p.idea,[k]:v}});const concept=(k:keyof Project['concept'],v:string)=>setP({...p,concept:{...p.concept,[k]:v}});const stamp=(i:number,k:keyof Stamp,v:string)=>setP({...p,stamps:p.stamps.map((s,n)=>n===i?{...s,[k]:v}:s)});const save=async(next=p)=>{const saved=await updateProject(next);setP(saved);return saved;};const make=async()=>{try{const saved=await save();setPrompt(generateIdeaPrompt(saved));setMsg('JSON回答用のAIプロンプトを作成しました。');}catch{setErr('保存に失敗しました。');}};const copy=async()=>{try{await navigator.clipboard.writeText(prompt);setMsg('プロンプトをコピーしました。');}catch{setErr('コピーできませんでした。');}};const importJson=async()=>{try{const d=parseAIResponse(json);const stamps:Stamp[]=d.stamps.map((s,i)=>({id:p.stamps[i]?.id||crypto.randomUUID(),number:i+1,text:s.comment,emotion:s.emotion,expression:s.expression||'',pose:s.pose,situation:s.scene}));const next={...p,concept:{concept:d.concept,characterDirection:d.characterDirection,designStyle:d.designStyle,usageScene:d.usageScene,dialogueDirection:d.dialogueDirection,differentiation:d.differentiation},stamps};await save(next);setMsg('AI回答を読み込みました。内容を確認・編集してください。');setErr('');}catch{setErr('JSONを読み込めませんでした。AIの回答全文をそのまま貼り付け、9件のスタンプが含まれているか確認してください。');}};const next=async()=>{try{await save({...p,currentStep:Math.max(p.currentStep,2)});router.push(`/projects/${id}/character`);}catch{setErr('保存に失敗しました。');}};return <main className="mx-auto min-h-dvh max-w-md bg-zinc-50 px-5 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+1rem)]"><button onClick={()=>router.push('/')} className="min-h-11 text-2xl">‹</button><p className="mt-2 text-xs font-bold text-emerald-600">STEP 1 / 5</p><h1 className="text-2xl font-bold">アイデア</h1><p className="mt-1 text-sm text-zinc-500">AIと企画・9個のスタンプ内容をここで確定します。</p>{err&&<p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{err}</p>}{msg&&<p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{msg}</p>}<section className="mt-6 space-y-4 rounded-3xl border bg-white p-5">{([['rawIdea','アイデア'],['target','ターゲット'],['usageScene','利用シーン'],['mood','雰囲気'],['notes','その他']] as [keyof Project['idea'],string][]).map(([k,l])=><label key={k} className="block text-sm font-medium">{l}<textarea value={p.idea[k]} onChange={e=>idea(k,e.target.value)} className={`${input} ${k==='rawIdea'?'min-h-24':''}`}/></label>)}<button onClick={make} className="min-h-12 w-full rounded-xl bg-emerald-600 font-bold text-white">AI用プロンプトを作成</button></section>{prompt&&<section className="mt-6 rounded-3xl bg-emerald-50 p-5"><div className="flex justify-between gap-3"><b>AI用プロンプト</b><button onClick={copy} className="min-h-11 rounded-xl border bg-white px-4 font-bold text-emerald-700">コピー</button></div><pre className="mt-3 whitespace-pre-wrap text-sm leading-6">{prompt}</pre></section>}<section className="mt-6 rounded-3xl border bg-white p-5"><h2 className="font-bold">AI回答を貼り付け</h2><p className="mt-1 text-xs text-zinc-500">AIから返ってきたJSONをそのまま貼り付けてください。</p><textarea value={json} onChange={e=>setJson(e.target.value)} placeholder="{ ... }" className={`${input} mt-4 min-h-40 font-mono`}/><button onClick={importJson} className="mt-4 min-h-12 w-full rounded-xl border border-emerald-600 font-bold text-emerald-700">JSONを読み込む</button></section>{p.stamps.length===9&&<><section className="mt-6 space-y-3 rounded-3xl border bg-white p-5"><h2 className="font-bold">企画内容を確認</h2>{([['concept','コンセプト'],['characterDirection','キャラクター方向性'],['designStyle','デザインテイスト'],['usageScene','利用シーン'],['dialogueDirection','セリフ方向性'],['differentiation','差別化ポイント']] as [keyof Project['concept'],string][]).map(([k,l])=><label key={k} className="block text-sm font-medium">{l}<textarea value={p.concept[k]} onChange={e=>concept(k,e.target.value)} className={input}/></label>)}</section><section className="mt-6 space-y-4"><h2 className="px-1 font-bold">9個のスタンプを確認</h2>{p.stamps.map((s,i)=><article key={s.id} className="rounded-3xl border bg-white p-4"><b>{String(i+1).padStart(2,'0')}</b><label className="mt-2 block text-xs">コメント<input value={s.text} onChange={e=>stamp(i,'text',e.target.value)} className={input}/></label><div className="grid grid-cols-2 gap-2">{([['emotion','感情'],['expression','表情'],['pose','ポーズ'],['situation','利用シーン']] as [keyof Stamp,string][]).map(([k,l])=><label key={k} className="mt-2 block text-xs">{l}<input value={String(s[k])} onChange={e=>stamp(i,k,e.target.value)} className={input}/></label>)}</div></article>)}</section><button onClick={next} className="mt-6 min-h-14 w-full rounded-xl bg-emerald-600 font-bold text-white">このアイデアで確定してSTEP 2へ</button></>}</main>;}
