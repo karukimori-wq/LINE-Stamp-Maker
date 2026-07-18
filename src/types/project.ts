@@ -1,5 +1,7 @@
 import type { Stamp } from './stamp';
 
+export type ProjectStampType = 'static' | 'animated';
+
 export interface IdeaInput {
   rawIdea: string;
   target: string;
@@ -32,6 +34,7 @@ export interface Character {
 export interface Project {
   id: string;
   name: string;
+  stampType?: ProjectStampType;
   currentStep: number;
   createdAt: string;
   updatedAt: string;
