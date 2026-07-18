@@ -6,4 +6,9 @@ export interface Stamp {
   expression: string;
   pose: string;
   situation: string;
+  startPose?: string;
+  motion?: string;
+  endPose?: string;
+  loop?: string;
+  frameCount?: string;
 }
