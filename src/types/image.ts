@@ -1,4 +1,4 @@
-export type ImageRecordType = 'character' | 'grid' | 'stamp' | 'main' | 'tab';
+export type ImageRecordType = 'character' | 'grid' | 'stamp' | 'animatedStamp' | 'main' | 'tab';
 
 export interface ImageRecord {
   id: string;
