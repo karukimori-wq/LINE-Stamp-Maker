@@ -1,6 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { ImageRecord } from '@/types/image';
-import type { Project } from '@/types/project';
+import type { Project, ProjectStampType } from '@/types/project';
 
 export const DB_NAME = 'line-stamp-maker';
 const DB_VERSION = 1;
@@ -51,11 +51,12 @@ function getDb() {
   return dbPromise;
 }
 
-const emptyProject = (name: string): Project => {
+const emptyProject = (name: string, stampType: ProjectStampType = 'static'): Project => {
   const now = new Date().toISOString();
   return {
     id: crypto.randomUUID(),
     name: name.trim(),
+    stampType,
     currentStep: 1,
     createdAt: now,
     updatedAt: now,
@@ -76,14 +77,14 @@ export async function getProject(id: string): Promise<Project | undefined> {
   return (await getDb()).get('projects', id);
 }
 
-export async function createProject(name: string): Promise<Project> {
-  const project = emptyProject(name);
+export async function createProject(name: string, stampType: ProjectStampType = 'static'): Promise<Project> {
+  const project = emptyProject(name, stampType);
   await (await getDb()).put('projects', project);
   return project;
 }
 
 export async function updateProject(project: Project): Promise<Project> {
-  const updated = { ...project, updatedAt: new Date().toISOString() };
+  const updated = { ...project, stampType: project.stampType ?? 'static', updatedAt: new Date().toISOString() };
   await (await getDb()).put('projects', updated);
   return updated;
 }
@@ -103,7 +104,7 @@ export async function duplicateProject(id: string): Promise<Project> {
   if (!source) throw new Error('複製元のプロジェクトが見つかりません。');
   const now = new Date().toISOString();
   const copyId = crypto.randomUUID();
-  const copy: Project = { ...structuredClone(source), id: copyId, name: `${source.name} のコピー`, createdAt: now, updatedAt: now };
+  const copy: Project = { ...structuredClone(source), stampType: source.stampType ?? 'static', id: copyId, name: `${source.name} のコピー`, createdAt: now, updatedAt: now };
   const images = await db.getAllFromIndex('images', 'by-projectId', id);
   const tx = db.transaction(['projects', 'images'], 'readwrite');
   await tx.objectStore('projects').put(copy);
