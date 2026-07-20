@@ -11,14 +11,28 @@ export async function splitGridImage(blob: Blob): Promise<Array<{ blob: Blob; wi
   const image = await blobToImage(blob);
   const results: Array<{ blob: Blob; width: number; height: number }> = [];
   try {
+    // Every output frame must have exactly the same dimensions for APNG encoding.
+    // Source dimensions are not always divisible by 3 (for example 1024px), so
+    // using rounded crop boundaries can produce a mix of 341px and 342px frames.
+    // We keep full source coverage in the crop, but normalize every crop into a
+    // common canvas size based on the largest cell.
+    const xBounds = [0, Math.round(image.width / 3), Math.round((image.width * 2) / 3), image.width];
+    const yBounds = [0, Math.round(image.height / 3), Math.round((image.height * 2) / 3), image.height];
+    const targetWidth = Math.max(xBounds[1] - xBounds[0], xBounds[2] - xBounds[1], xBounds[3] - xBounds[2]);
+    const targetHeight = Math.max(yBounds[1] - yBounds[0], yBounds[2] - yBounds[1], yBounds[3] - yBounds[2]);
+
     for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) {
-      const x0 = Math.round((image.width * col) / 3), x1 = Math.round((image.width * (col + 1)) / 3);
-      const y0 = Math.round((image.height * row) / 3), y1 = Math.round((image.height * (row + 1)) / 3);
-      const width = x1 - x0, height = y1 - y0;
-      const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+      const x0 = xBounds[col], x1 = xBounds[col + 1];
+      const y0 = yBounds[row], y1 = yBounds[row + 1];
+      const sourceWidth = x1 - x0, sourceHeight = y1 - y0;
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth; canvas.height = targetHeight;
       const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('Canvasを利用できません。');
-      ctx.drawImage(image, x0, y0, width, height, 0, 0, width, height);
-      results.push({ blob: await canvasToBlob(canvas), width, height });
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.clearRect(0, 0, targetWidth, targetHeight);
+      ctx.drawImage(image, x0, y0, sourceWidth, sourceHeight, 0, 0, targetWidth, targetHeight);
+      results.push({ blob: await canvasToBlob(canvas), width: targetWidth, height: targetHeight });
     }
     return results;
   } finally { image.close(); }
