@@ -1,4 +1,5 @@
 import type { Project } from '@/types/project';
+import type { Stamp } from '@/types/stamp';
 
 const isAnimated = (project: Project) => project.stampType === 'animated';
 const stampCount = (project: Project) => isAnimated(project) ? 8 : 9;
@@ -21,6 +22,19 @@ export function generateStampGridPrompt(project: Project): string {
   const stampLines = project.stamps.map((stamp) => `セル${String(stamp.number).padStart(2, '0')}: セリフ「${stamp.text}」 / 感情:${stamp.emotion} / 表情:${stamp.expression} / ポーズ:${stamp.pose} / シチュエーション:${stamp.situation}`).join('\n');
   const { character, concept } = project;
   return `あなたはLINEスタンプ用イラストを制作するイラストレーターです。STEP 1で確定した9個のスタンプ案とSTEP 2で確定したキャラクター設定を使い、9種類のスタンプを1枚の3×3グリッド画像として生成してください。\n\n【企画】${concept.concept}\n【利用シーン】${concept.usageScene}\n【セリフ方向性】${concept.dialogueDirection}\n\n【キャラクター】${character.name} / ${character.type}\n性格:${character.personality}\n外見:${character.appearance}\n服装:${character.clothing}\nメインカラー:${character.mainColor}\n画風:${character.artStyle}\n特徴:${character.features}\nNG:${character.negativePrompt}\n\n【最重要ルール】\n・背景は完全透明にしてください。白背景、単色背景、紙の質感、風景背景、影付きの背景は描かないでください。\n・画像内に01〜09などの番号、セル番号、管理番号、ラベル、見出しを絶対に描かないでください。\n・グリッド線、枠線、区切り線、パネル境界線を描かないでください。\n・描画してよい文字は、各スタンプで指定されたセリフ本文だけです。\n・各セルは後で個別画像に切り出す前提です。キャラクター、セリフ、効果表現がセル境界をまたがないよう十分な余白を確保してください。\n・9コマすべてで同一キャラクターとして、顔、体型、配色、服装、線のタッチを統一してください。\n\n【STEP 1で確定した9スタンプ】\n${stampLines}\n\n【配置ルール】\n内容の割り当て順は、左上から右へセル01・02・03、中央段がセル04・05・06、下段がセル07・08・09です。ただし、この番号は配置指示のためだけに使用し、生成画像の中には一切描かないでください。正方形キャンバス上に3列×3行で均等配置し、セル同士の間隔は透明な余白だけにしてください。各セルの背景も完全透明にし、切り出した各画像がそのまま透過PNG素材として使える構成にしてください。`;
+}
+
+function animationBase(project: Project, stamp: Stamp): string {
+  const { character, concept } = project;
+  return `【企画】${concept.concept}\n【キャラクター】${character.name} / ${character.type}\n性格:${character.personality}\n外見:${character.appearance}\n服装:${character.clothing}\nメインカラー:${character.mainColor}\n画風:${character.artStyle}\n特徴:${character.features}\nNG:${character.negativePrompt}\n\n【対象スタンプ】\nセリフ「${stamp.text}」\n感情:${stamp.emotion}\n表情:${stamp.expression}\n開始ポーズ:${stamp.startPose || stamp.pose}\n動き:${stamp.motion || '自然な小さな動き'}\n終了ポーズ:${stamp.endPose || stamp.pose}\nループ:${stamp.loop || '自然に最初へ戻る'}\n予定フレーム数:${stamp.frameCount || '12'}`;
+}
+
+export function generateAnimationSheetPrompt(project: Project, stamp: Stamp, sheet: 1 | 2): string {
+  const range = sheet === 1 ? 'フレーム1〜9' : 'フレーム10〜18';
+  const continuity = sheet === 1
+    ? '開始ポーズから動作の前半〜中盤を、時間順に9段階へ滑らかに変化させてください。使用予定フレーム数が9未満の場合も、9セルすべてに自然な補間フレームを作成してください。'
+    : '必ずシート1の生成画像を参照画像として使用してください。シート1の右下（フレーム9）の直後から動きを開始し、動作の後半〜終了ポーズ、必要ならループ開始へ戻る直前までを時間順に9段階で描いてください。シート1とキャラクターの位置・サイズ・画風を完全に揃えてください。';
+  return `あなたはLINEアニメーションスタンプ用の連番フレームを制作するイラストレーターです。1つのアニメーションスタンプについて、${range}に相当する3×3フレームシートを1枚生成してください。\n\n${animationBase(project, stamp)}\n\n【今回生成するもの】\nシート${sheet}：${range}\n${continuity}\n\n【最重要ルール】\n・正方形キャンバスを3列×3行として使い、左上→右、上段→中央段→下段の順に時間が進む9フレームを配置してください。\n・グリッド線、枠線、区切り線は絶対に描かないでください。\n・フレーム番号、01〜18、シート番号、ラベル、見出しなどの管理文字を絶対に描かないでください。\n・背景は完全透明。白背景、単色背景、風景背景、紙の質感は禁止です。\n・描画してよい文字はセリフ「${stamp.text}」だけです。セリフの位置・サイズ・書体は全フレームで極力固定してください。\n・キャラクターの基準位置と表示サイズを全フレームで固定し、顔、体型、配色、服装、線の太さ、画風を完全に維持してください。\n・動かす必要がある身体パーツと表情だけを段階的に変化させ、不要な位置ずれや拡大縮小を起こさないでください。\n・キャラクター、セリフ、効果表現は各セル境界をまたがないよう、十分な透明余白を確保してください。\n・9セルはアプリで均等に自動分割します。各セルの構図と基準位置を揃えてください。\n${sheet === 2 ? '・このプロンプト単独ではなく、必ずシート1の完成画像を参照画像としてAIに添付して生成してください。' : ''}`;
 }
 
 export function generateAnimatedStickerPrompt(project: Project): string {
